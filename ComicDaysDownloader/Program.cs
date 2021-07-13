@@ -65,6 +65,10 @@ namespace ComicDaysDownloader
                         using var myBrush = new SolidBrush(Color.Red);
                         graphics.DrawImage(partialImageNewPosition, new Point(imageX, imageY));
                         graphics.DrawImage(partialImageOldPosition, new Point(newPositionX, newPositionY));
+                        //When sometimes the order of image will not be changed
+                        //Using the bottom code to adjust it
+                        //graphics.DrawImage(partialImageOldPosition, new Point(imageX, imageY));
+                        //graphics.DrawImage(partialImageNewPosition, new Point(newPositionX, newPositionY));
                     }
                 }
 
@@ -79,6 +83,18 @@ namespace ComicDaysDownloader
                     using var myBrush = new SolidBrush(Color.Red);
                     graphics.DrawImage(ImageMiddleLine, new Point(middleLineX, middleLineY));
                 }
+
+                //Add the heel of the bread
+                using var heelGraphics = Graphics.FromImage(newImage);
+
+                //Heel of bottom side
+                var rectBottomSide = new Rectangle(0, spacingHeight * 4, spacingWidth * 4, pageHeight - spacingHeight * 4);
+                var ImageBottomSide = mixedImage.Clone(rectBottomSide, PixelFormat.DontCare);
+                heelGraphics.DrawImage(ImageBottomSide, new Point(0, spacingHeight * 4));
+                //Heel of right side
+                var rectRightSide = new Rectangle(spacingWidth * 4, 0, pageWidth - spacingWidth * 4, pageHeight);
+                var ImageRightSide = mixedImage.Clone(rectRightSide, PixelFormat.DontCare);
+                heelGraphics.DrawImage(ImageRightSide, new Point(spacingWidth * 4, 0));
 
                 using MemoryStream memory = new MemoryStream();
                 using FileStream fs = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite);
