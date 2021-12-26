@@ -104,6 +104,91 @@ namespace ComicDaysDownloader
 
                 Console.WriteLine($"Page {page.ToString("00")} done!");
             });
+
+            filesDir = Path.Combine(Directory.GetCurrentDirectory(), DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss"));
+            Directory.CreateDirectory(filesDir);
+            Console.Clear();
+
+            pageCount = 1;
+            pages = ((JArray)dynamicJson.readableProduct.pageStructure.pages)
+                .Where(x => !string.IsNullOrWhiteSpace(x.Value<string>("src")))
+                .OrderBy(x => x.Value<string>("src"))
+                .ToDictionary(_ => pageCount++, x => (dynamic)x);
+
+            Parallel.ForEach(pages, (dic) =>
+            {
+                var page = dic.Key;
+                var image = dic.Value;
+                Console.WriteLine($"Processing page {page.ToString("00")}...");
+
+                var filePath = Path.Combine(filesDir, $"{page}.png");
+                var pageWidth = (int)image.width;
+                var pageHeight = (int)image.height;
+                var spacingWidth = (int)Math.Floor((double)(pageWidth / 32)) * 8;
+                var spacingHeight = (int)Math.Floor((double)(pageHeight / 32)) * 8; ;
+
+                var imageHttpResponse = httpClient.GetAsync(image.src.ToString()).GetAwaiter().GetResult();
+                using var imageDownloaded = imageHttpResponse.Content.ReadAsStreamAsync().GetAwaiter().GetResult();
+                using var mixedImage = new Bitmap(imageDownloaded);
+                using var newImage = new Bitmap(pageWidth, pageHeight);
+
+                for (var imageX = 0; imageX + spacingWidth <= pageWidth; imageX += spacingWidth)
+                {
+                    for (var imageY = (imageX / spacingWidth) * spacingHeight + spacingHeight;
+                         imageY + spacingHeight <= pageHeight;
+                         imageY += spacingHeight)
+                    {
+                        var rectOldPosition = new Rectangle(imageX, imageY, spacingWidth, spacingHeight);
+                        var partialImageOldPosition = mixedImage.Clone(rectOldPosition, PixelFormat.DontCare);
+
+                        var newPositionX = (imageY / spacingHeight) * spacingWidth;
+                        var newPositionY = (imageX / spacingWidth) * spacingHeight;
+                        var rectNewPosition = new Rectangle(newPositionX, newPositionY, spacingWidth, spacingHeight);
+                        var partialImageNewPosition = mixedImage.Clone(rectNewPosition, PixelFormat.DontCare);
+
+                        using var graphics = Graphics.FromImage(newImage);
+                        using var myBrush = new SolidBrush(Color.Red);
+                        graphics.DrawImage(partialImageNewPosition, new Point(imageX, imageY));
+                        graphics.DrawImage(partialImageOldPosition, new Point(newPositionX, newPositionY));
+                        //When sometimes the order of image will not be changed
+                        //Using the bottom code to adjust it
+                        graphics.DrawImage(partialImageOldPosition, new Point(imageX, imageY));
+                        graphics.DrawImage(partialImageNewPosition, new Point(newPositionX, newPositionY));
+                    }
+                }
+
+                for (var middleLine = 0; middleLine < 4; middleLine++)
+                {
+                    var middleLineX = middleLine * spacingWidth;
+                    var middleLineY = middleLine * spacingHeight;
+                    var rectMiddleLine = new Rectangle(middleLineX, middleLineY, spacingWidth, spacingHeight);
+                    var ImageMiddleLine = mixedImage.Clone(rectMiddleLine, PixelFormat.DontCare);
+
+                    using var graphics = Graphics.FromImage(newImage);
+                    using var myBrush = new SolidBrush(Color.Red);
+                    graphics.DrawImage(ImageMiddleLine, new Point(middleLineX, middleLineY));
+                }
+
+                //Add the heel of the bread
+                using var heelGraphics = Graphics.FromImage(newImage);
+
+                //Heel of bottom side
+                var rectBottomSide = new Rectangle(0, spacingHeight * 4, spacingWidth * 4, pageHeight - spacingHeight * 4);
+                var ImageBottomSide = mixedImage.Clone(rectBottomSide, PixelFormat.DontCare);
+                heelGraphics.DrawImage(ImageBottomSide, new Point(0, spacingHeight * 4));
+                //Heel of right side
+                var rectRightSide = new Rectangle(spacingWidth * 4, 0, pageWidth - spacingWidth * 4, pageHeight);
+                var ImageRightSide = mixedImage.Clone(rectRightSide, PixelFormat.DontCare);
+                heelGraphics.DrawImage(ImageRightSide, new Point(spacingWidth * 4, 0));
+
+                using MemoryStream memory = new MemoryStream();
+                using FileStream fs = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite);
+                newImage.Save(memory, ImageFormat.Png);
+                var bytes = memory.ToArray();
+                fs.Write(bytes, 0, bytes.Length);
+
+                Console.WriteLine($"Page {page.ToString("00")} done!");
+            });
         }
     }
 }
